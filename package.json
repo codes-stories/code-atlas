@@ -1,0 +1,205 @@
+{
+  "name": "code-atlas",
+  "displayName": "Code Atlas",
+  "description": "Visualize, understand and navigate code like a dependency graph.",
+  "version": "0.1.0",
+  "publisher": "code-atlas",
+  "private": true,
+  "engines": {
+    "vscode": "^1.90.0",
+    "node": ">=20.0.0"
+  },
+  "categories": [
+    "Visualization",
+    "Programming Languages",
+    "Other"
+  ],
+  "keywords": [
+    "dependency graph",
+    "call graph",
+    "code navigation",
+    "code visualization",
+    "erlang",
+    "graph"
+  ],
+  "icon": "assets/icon.png",
+  "galleryBanner": {
+    "color": "#0D1117",
+    "theme": "dark"
+  },
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension/main.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "codeAtlas.showGraph",
+        "title": "Show Code Atlas",
+        "category": "Code Atlas",
+        "icon": "$(type-hierarchy)"
+      },
+      {
+        "command": "codeAtlas.showGraphForSymbol",
+        "title": "Show Code Atlas for Symbol",
+        "category": "Code Atlas",
+        "icon": "$(symbol-misc)"
+      },
+      {
+        "command": "codeAtlas.refreshIndex",
+        "title": "Refresh Workspace Index",
+        "category": "Code Atlas",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "codeAtlas.clearCache",
+        "title": "Clear Cache",
+        "category": "Code Atlas",
+        "icon": "$(trash)"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "codeAtlas.showGraphForSymbol",
+          "when": "editorHasSelection",
+          "group": "navigation@10"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "codeAtlas.showGraph"
+        },
+        {
+          "command": "codeAtlas.showGraphForSymbol",
+          "when": "editorIsOpen"
+        },
+        {
+          "command": "codeAtlas.refreshIndex"
+        },
+        {
+          "command": "codeAtlas.clearCache"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "codeAtlas.showGraphForSymbol",
+        "key": "ctrl+shift+alt+g",
+        "mac": "cmd+shift+alt+g",
+        "when": "editorHasSelection"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "codeAtlasSidebar",
+          "title": "Code Atlas",
+          "icon": "$(type-hierarchy)"
+        }
+      ]
+    },
+    "views": {
+      "codeAtlasSidebar": [
+        {
+          "id": "codeAtlas.explorer",
+          "name": "Explorer",
+          "type": "webview"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Code Atlas",
+      "properties": {
+        "codeAtlas.maxNodes": {
+          "type": "number",
+          "default": 100000,
+          "description": "Maximum number of nodes to render in the graph."
+        },
+        "codeAtlas.maxEdges": {
+          "type": "number",
+          "default": 500000,
+          "description": "Maximum number of edges to render in the graph."
+        },
+        "codeAtlas.defaultLayout": {
+          "type": "string",
+          "default": "dagre",
+          "enum": ["dagre", "force", "radial", "tree", "horizontal", "vertical"],
+          "description": "Default graph layout algorithm."
+        },
+        "codeAtlas.enableIncrementalParsing": {
+          "type": "boolean",
+          "default": true,
+          "description": "Re-parse only changed files on save."
+        },
+        "codeAtlas.cacheDirectory": {
+          "type": "string",
+          "default": "",
+          "description": "Override cache directory. Defaults to .code-atlas/ in workspace root."
+        },
+        "codeAtlas.enableGitBlame": {
+          "type": "boolean",
+          "default": true,
+          "description": "Annotate nodes with git blame information."
+        },
+        "codeAtlas.logLevel": {
+          "type": "string",
+          "default": "info",
+          "enum": ["debug", "info", "warn", "error"],
+          "description": "Extension log level."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "build:ext": "node scripts/build.mjs --target=extension",
+    "build:ui": "node scripts/build.mjs --target=webview",
+    "watch": "node scripts/build.mjs --watch",
+    "watch:ext": "node scripts/build.mjs --target=extension --watch",
+    "watch:ui": "node scripts/build.mjs --target=webview --watch",
+    "lint": "eslint src --ext .ts,.tsx",
+    "lint:fix": "eslint src --ext .ts,.tsx --fix",
+    "format": "prettier --write \"src/**/*.{ts,tsx,json}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,json}\"",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:perf": "vitest run --config vitest.perf.config.ts",
+    "typecheck": "tsc --noEmit",
+    "typecheck:ext": "tsc --noEmit --project tsconfig.extension.json",
+    "typecheck:ui": "tsc --noEmit --project tsconfig.webview.json",
+    "vscode:prepublish": "npm run build",
+    "package": "vsce package",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "reactflow": "11.11.4",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "web-tree-sitter": "0.26.11",
+    "zustand": "5.0.14",
+    "immer": "11.1.15",
+    "clsx": "2.1.1"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.1",
+    "@types/react": "18.3.3",
+    "@types/react-dom": "18.3.0",
+    "@types/vscode": "1.90.0",
+    "@typescript-eslint/eslint-plugin": "8.65.0",
+    "@typescript-eslint/parser": "8.65.0",
+    "@vitejs/plugin-react": "6.0.4",
+    "@vitest/coverage-v8": "4.1.10",
+    "esbuild": "0.28.1",
+    "eslint": "9.39.5",
+    "eslint-config-prettier": "10.1.8",
+    "eslint-plugin-react": "7.37.5",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "prettier": "3.9.6",
+    "typescript": "5.9.3",
+    "vitest": "4.1.10",
+    "@vscode/vsce": "3.9.2"
+  }
+}

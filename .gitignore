@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+*.vsix
+
+# Runtime
+*.log
+*.pid
+*.lock
+
+# VS Code
+.vscode-test/
+.code-atlas/
+
+# Test coverage
+coverage/
+
+# Tree-sitter grammars (generated)
+*.wasm
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+*.swp
+*.swo
+*~
+.idea/
