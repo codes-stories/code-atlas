@@ -226,6 +226,39 @@ npm run build
 - [x] ESBuild: dist/extension/main.js — clean
 - [x] TypeScript: zero errors
 
+## Phase Status
+
+**Phase 1: Architecture and Project Bootstrap** ✅ **COMPLETE**
+
+- [x] Directory structure
+- [x] package.json with VS Code manifest
+- [x] TypeScript configuration (root, extension, webview)
+- [x] ESBuild configuration
+- [x] ESLint and Prettier
+- [x] Core domain models (Node, Edge, Graph)
+- [x] LanguageParser interface
+- [x] ParserRegistry service
+- [x] Shared types and enums
+- [x] .vscodeignore and .gitignore
+- [x] launch.json and tasks.json
+- [x] Dependencies installed and verified
+
+**Phase 2: VS Code Extension Shell** ✅ **COMPLETE**
+
+- [x] Logger service (OutputChannel, log levels, structured output)
+- [x] ConfigService (typed settings, onDidChange event)
+- [x] MessageBus (typed extension↔webview bridge)
+- [x] GraphWebviewProvider (singleton panel, lifecycle, message routing)
+- [x] Webview HTML shell (CSP-compliant, loading spinner, nonce)
+- [x] ShowGraphCommand
+- [x] ShowGraphForSymbolCommand
+- [x] RefreshIndexCommand
+- [x] ClearCacheCommand
+- [x] main.ts with full DI wiring in activate()
+- [x] Unit tests: 36 passing (ParserRegistry)
+- [x] ESBuild: dist/extension/main.js — clean
+- [x] TypeScript: zero errors
+
 **Phase 3: React WebView** ✅ **COMPLETE**
 
 - [x] `src/ui/webview/globals.d.ts` — `acquireVsCodeApi` global declaration
@@ -242,9 +275,97 @@ npm run build
 - [x] ESBuild: extension 22 KB, webview 1.1 MB — clean
 - [x] TypeScript: zero errors (both tsconfigs)
 
-**Next Phase:**
+**Phase 4: Graph Engine** ✅ **COMPLETE**
 
-Phase 4: Graph Engine — build the in-memory graph, node/edge indexing, neighbourhood queries.
+- [x] GraphBuilder — assembles CodeGraph from parser output, wires edge arrays
+- [x] GraphIndex — O(n) secondary index (by file, module, kind, language, edge kind)
+- [x] GraphQuery — BFS neighbourhood, shortest path, all paths, cycle detection
+- [x] GraphMerge — incremental file patch, file removal, parallel merge
+- [x] GraphSerializer — JSON + version envelope + SHA-256 checksum, atomic write
+- [x] GraphService — single facade: builder/index/query/merge/serializer + cache I/O
+- [x] Unit tests: 126 passing (GraphBuilder 23, GraphIndex 23, GraphQuery 25, GraphMerge 19, ParserRegistry 36)
+- [x] ESBuild: clean
+- [x] TypeScript: zero errors
+
+**Phase 5: Parser Framework** ⬜ PENDING
+
+- [ ] Abstract base parser class with shared utilities
+- [ ] Tree-sitter initialisation and WASM loader
+- [ ] File discovery and glob filtering
+- [ ] Parser worker scaffolding
+
+**Phase 6: Erlang Parser** ⬜ PENDING
+
+- [ ] Tree-sitter Erlang grammar integration
+- [ ] Module, function, gen_server, supervisor parsing
+- [ ] Cross-module call resolution
+- [ ] ETS, message passing, spawn edge detection
+
+**Phase 7: Graph Rendering** ⬜ PENDING
+
+- [ ] React Flow integration in GraphView
+- [ ] Dagre layout engine
+- [ ] Node and edge custom renderers
+- [ ] Zoom, pan, minimap
+- [ ] Highlight paths, cycles, recursive calls
+
+**Phase 8: Workspace Indexing** ⬜ PENDING
+
+- [ ] WorkspaceIndexer service
+- [ ] File watcher for incremental re-parse
+- [ ] Progress reporting to webview
+- [ ] Cache load/save orchestration
+
+**Phase 9: Incremental Parsing** ⬜ PENDING
+
+- [ ] File save trigger → re-parse changed file
+- [ ] GraphMerge integration with WorkspaceIndexer
+- [ ] Debounce and queue management
+
+**Phase 10: Search** ⬜ PENDING
+
+- [ ] Symbol search command palette
+- [ ] Fuzzy / regex / wildcard search
+- [ ] Sidebar search panel
+
+**Phase 11: Node Details** ⬜ PENDING
+
+- [ ] Detail panel React component
+- [ ] Node definition, documentation, metrics
+- [ ] Incoming / outgoing relationship list
+- [ ] Git blame display
+
+**Phase 12: Edge Details** ⬜ PENDING
+
+- [ ] Edge detail panel
+- [ ] Caller / callee display
+- [ ] Condition and source code snippet
+- [ ] Open in Editor action
+
+**Phase 13: Performance Optimisation** ⬜ PENDING
+
+- [ ] Web Worker for parsing off the main thread
+- [ ] Virtualised node/edge rendering for large graphs
+- [ ] GraphIndex query caching
+
+**Phase 14: Local Testing** ⬜ PENDING
+
+- [ ] Integration test suite
+- [ ] Performance benchmarks
+- [ ] Sample workspace with Erlang project
+- [ ] End-to-end smoke test
+
+**Phase 15: Packaging** ⬜ PENDING
+
+- [ ] .vsix bundle
+- [ ] Extension icon and gallery banner
+- [ ] vsce package verification
+
+**Phase 16: Marketplace Preparation** ⬜ PENDING
+
+- [ ] README for marketplace
+- [ ] Changelog
+- [ ] Publisher account and manifest review
 
 ---
 
