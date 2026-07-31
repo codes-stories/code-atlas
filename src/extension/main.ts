@@ -139,7 +139,7 @@ export function activate(context: vscode.ExtensionContext): void {
     }
     const graph = graphService.getGraph();
     const focalNode = defs[0]!.node;
-    provider.send({ type: "graph_data", graph, focalNodeId: focalNode.id });
+    provider.send({ type: MessageType.GraphData, graph, focalNodeId: focalNode.id });
   });
 
   const refreshIndexCommand = new RefreshIndexCommand(

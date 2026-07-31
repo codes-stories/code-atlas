@@ -187,6 +187,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
+    "@dagrejs/dagre": "^3.0.0",
     "clsx": "2.1.1",
     "immer": "11.1.15",
     "react": "18.3.1",
@@ -196,6 +197,7 @@
     "zustand": "5.0.14"
   },
   "devDependencies": {
+    "@types/dagre": "^0.7.54",
     "@types/node": "22.20.1",
     "@types/react": "18.3.3",
     "@types/react-dom": "18.3.0",

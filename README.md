@@ -298,12 +298,23 @@ npm run build
 - [x] ESBuild: clean
 - [x] TypeScript: zero errors
 
-**Phase 6: Erlang Parser** ⬜ PENDING
+**Phase 6: Erlang Parser** ✅ **COMPLETE**
 
-- [ ] Tree-sitter Erlang grammar integration
-- [ ] Module, function, gen_server, supervisor parsing
-- [ ] Cross-module call resolution
-- [ ] ETS, message passing, spawn edge detection
+- [x] Tree-sitter Erlang grammar (WhatsApp/tree-sitter-erlang v0.20) compiled to WASM
+- [x] `grammars/tree-sitter-erlang.wasm` — 429 KB, bundled with extension
+- [x] ErlangSyntaxHelper — AST traversal utilities (descendants, callTarget, isSpawnCall, etc.)
+- [x] ErlangParser — extends AbstractParser, extracts:
+  - Module nodes (`-module(Name).`)
+  - Function nodes with arity, LOC, cyclomatic complexity, doc comments
+  - Local and remote call edges
+  - Spawn / spawn_link edges
+  - gen_server:call/cast edges
+  - ETS read/write edges
+- [x] Fixture files: kv_store.erl (gen_server), kv_sup.erl (supervisor), math_utils.erl (local calls)
+- [x] ErlangParser wired into main.ts activate() via ParserRegistry
+- [x] Unit tests: 184 passing (ErlangParser 26 + previous 158)
+- [x] ESBuild: clean
+- [x] TypeScript: zero errors
 
 **Phase 7: Graph Rendering** ⬜ PENDING
 
