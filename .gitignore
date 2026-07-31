@@ -17,8 +17,9 @@ dist/
 # Test coverage
 coverage/
 
-# Tree-sitter grammars (generated)
-*.wasm
+# Tree-sitter grammars (generated — committed as binary assets)
+# Individual generated .wasm files produced during development
+/tmp/tree-sitter-*
 
 # OS
 .DS_Store

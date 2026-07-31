@@ -124,7 +124,14 @@
         "codeAtlas.defaultLayout": {
           "type": "string",
           "default": "dagre",
-          "enum": ["dagre", "force", "radial", "tree", "horizontal", "vertical"],
+          "enum": [
+            "dagre",
+            "force",
+            "radial",
+            "tree",
+            "horizontal",
+            "vertical"
+          ],
           "description": "Default graph layout algorithm."
         },
         "codeAtlas.enableIncrementalParsing": {
@@ -145,7 +152,12 @@
         "codeAtlas.logLevel": {
           "type": "string",
           "default": "info",
-          "enum": ["debug", "info", "warn", "error"],
+          "enum": [
+            "debug",
+            "info",
+            "warn",
+            "error"
+          ],
           "description": "Extension log level."
         }
       }
@@ -175,13 +187,13 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "reactflow": "11.11.4",
+    "clsx": "2.1.1",
+    "immer": "11.1.15",
     "react": "18.3.1",
     "react-dom": "18.3.1",
+    "reactflow": "11.11.4",
     "web-tree-sitter": "0.26.11",
-    "zustand": "5.0.14",
-    "immer": "11.1.15",
-    "clsx": "2.1.1"
+    "zustand": "5.0.14"
   },
   "devDependencies": {
     "@types/node": "22.20.1",
@@ -192,14 +204,15 @@
     "@typescript-eslint/parser": "8.65.0",
     "@vitejs/plugin-react": "6.0.4",
     "@vitest/coverage-v8": "4.1.10",
+    "@vscode/vsce": "3.9.2",
     "esbuild": "0.28.1",
     "eslint": "9.39.5",
     "eslint-config-prettier": "10.1.8",
     "eslint-plugin-react": "7.37.5",
     "eslint-plugin-react-hooks": "7.1.1",
     "prettier": "3.9.6",
+    "tree-sitter-cli": "^0.26.11",
     "typescript": "5.9.3",
-    "vitest": "4.1.10",
-    "@vscode/vsce": "3.9.2"
+    "vitest": "4.1.10"
   }
 }

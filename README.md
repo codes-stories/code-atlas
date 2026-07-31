@@ -287,12 +287,16 @@ npm run build
 - [x] ESBuild: clean
 - [x] TypeScript: zero errors
 
-**Phase 5: Parser Framework** ⬜ PENDING
+**Phase 5: Parser Framework** ✅ **COMPLETE**
 
-- [ ] Abstract base parser class with shared utilities
-- [ ] Tree-sitter initialisation and WASM loader
-- [ ] File discovery and glob filtering
-- [ ] Parser worker scaffolding
+- [x] AbstractParser base class (shared utilities, default parseWorkspace/getReferences/getRelationships)
+- [x] TreeSitterLoader (Parser.init, Language.load with caching, createParser)
+- [x] FileDiscovery service (recursive walk, glob excludes, extension filter, maxDepth)
+- [x] NodeIdGenerator (SHA-1 stable IDs for nodes and edges)
+- [x] ParseWorkerHost (worker_thread pool, round-robin dispatch, timeout, setupWorkerHandler)
+- [x] Unit tests: 158 passing (NodeIdGenerator 19, FileDiscovery 13 + previous 126)
+- [x] ESBuild: clean
+- [x] TypeScript: zero errors
 
 **Phase 6: Erlang Parser** ⬜ PENDING
 

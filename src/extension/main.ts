@@ -1,3 +1,4 @@
+import * as path from "path";
 import * as vscode from "vscode";
 import { Logger } from "./services/Logger";
 import { ConfigService } from "./services/ConfigService";
@@ -6,21 +7,22 @@ import { ShowGraphCommand } from "./commands/ShowGraphCommand";
 import { ShowGraphForSymbolCommand } from "./commands/ShowGraphForSymbolCommand";
 import { RefreshIndexCommand } from "./commands/RefreshIndexCommand";
 import { ClearCacheCommand } from "./commands/ClearCacheCommand";
+import { TreeSitterLoader } from "./parsers/TreeSitterLoader";
+import { ErlangParser } from "./parsers/ErlangParser";
+import { GraphService } from "./graph/GraphService";
+import { ParserRegistry } from "../shared/ParserRegistry";
+import { MessageType } from "../shared/enums";
 
 /**
  * VS Code extension entry point.
  *
- * `activate` is called once when the extension is first loaded. It is
- * responsible for constructing every service and registering all
- * disposables with the ExtensionContext so VS Code can clean up on
- * deactivation without the extension needing to track subscriptions itself.
- *
  * Dependency wiring order:
- *   1. Logger          — no dependencies
- *   2. ConfigService   — no dependencies
- *   3. Provider        — Logger, extensionUri
- *   4. Commands        — Provider, Logger, ConfigService
- *   5. Config listener — Logger, (future: graph engine)
+ *   1. Logger, ConfigService
+ *   2. TreeSitterLoader — boots the WASM runtime
+ *   3. ParserRegistry + ErlangParser registration
+ *   4. GraphService — in-memory graph facade
+ *   5. GraphWebviewProvider
+ *   6. Commands
  */
 export function activate(context: vscode.ExtensionContext): void {
   // -------------------------------------------------------------------------
@@ -33,20 +35,49 @@ export function activate(context: vscode.ExtensionContext): void {
   const logger = new Logger(config.logLevel);
   logger.info("[main] Code Atlas activating…");
 
-  // Keep log level in sync with user settings.
   const configListener = configService.onDidChange((updated) => {
     logger.setLevel(updated.logLevel);
     logger.debug("[main] Configuration updated", { logLevel: updated.logLevel });
   });
 
   // -------------------------------------------------------------------------
-  // 2. Webview provider
+  // 2. Tree-sitter WASM runtime
+  // -------------------------------------------------------------------------
+
+  const loader = new TreeSitterLoader();
+  const wasmDir = path.join(context.extensionUri.fsPath, "node_modules", "web-tree-sitter");
+
+  // Boot the WASM runtime asynchronously — parsers will await ensureGrammarLoaded()
+  // before first use, so this fire-and-forget is safe.
+  loader.init(wasmDir).catch((err: unknown) => {
+    logger.error("[main] Failed to initialise tree-sitter WASM runtime", err);
+  });
+
+  // -------------------------------------------------------------------------
+  // 3. Parser registry
+  // -------------------------------------------------------------------------
+
+  const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? "";
+  const grammarDir = path.join(context.extensionUri.fsPath, "grammars");
+
+  const parserRegistry = new ParserRegistry();
+  const erlangParser = new ErlangParser(workspaceRoot, loader, grammarDir);
+  parserRegistry.register(erlangParser);
+
+  logger.info("[main] Registered parsers", { languages: parserRegistry.languages() });
+
+  // -------------------------------------------------------------------------
+  // 4. Graph service
+  // -------------------------------------------------------------------------
+
+  const graphService = new GraphService(workspaceRoot, logger);
+
+  // -------------------------------------------------------------------------
+  // 5. Webview provider
   // -------------------------------------------------------------------------
 
   const provider = new GraphWebviewProvider(context.extensionUri, logger);
 
-  // Wire up the OpenInEditor handler immediately — no dependency on the graph
-  // engine, so it can be registered here.
   provider.onDidRequestOpenEditor(async (filePath, line, column) => {
     logger.info("[main] Opening editor at", { filePath, line, column });
     try {
@@ -67,18 +98,53 @@ export function activate(context: vscode.ExtensionContext): void {
     }
   });
 
+  provider.onDidRequestNodeDetails(async (msg) => {
+    const node = graphService.getNode(msg.nodeId);
+    if (!node) return;
+    const incoming = graphService.getIncomingEdges(msg.nodeId);
+    const outgoing = graphService.getOutgoingEdges(msg.nodeId);
+    provider.send({ type: MessageType.NodeDetails, node, incomingEdges: incoming, outgoingEdges: outgoing });
+  });
+
+  provider.onDidRequestEdgeDetails(async (msg) => {
+    const edge = graphService.getEdge(msg.edgeId);
+    if (!edge) return;
+    const sourceNode = graphService.getNode(edge.sourceId);
+    const targetNode = graphService.getNode(edge.targetId);
+    if (!sourceNode || !targetNode) return;
+    provider.send({ type: MessageType.EdgeDetails, edge, sourceNode, targetNode });
+  });
+
   // -------------------------------------------------------------------------
-  // 3. Commands
+  // 6. Commands
   // -------------------------------------------------------------------------
 
   const showGraphCommand = new ShowGraphCommand(provider, logger);
 
   const showGraphForSymbolCommand = new ShowGraphForSymbolCommand(provider, logger);
-  // Phase 4 will call showGraphForSymbolCommand.onFocusSymbol(graphEngine.focus).
+  showGraphForSymbolCommand.onFocusSymbol(async (ctx) => {
+    const parser = parserRegistry.resolve(ctx.filePath);
+    if (!parser) {
+      void vscode.window.showWarningMessage(
+        `Code Atlas: No parser registered for ${path.extname(ctx.filePath)} files.`,
+      );
+      return;
+    }
+    const defs = await parser.getDefinitions(ctx.filePath, ctx.symbolName);
+    if (defs.length === 0) {
+      void vscode.window.showInformationMessage(
+        `Code Atlas: No definition found for "${ctx.symbolName}".`,
+      );
+      return;
+    }
+    const graph = graphService.getGraph();
+    const focalNode = defs[0]!.node;
+    provider.send({ type: "graph_data", graph, focalNodeId: focalNode.id });
+  });
 
   const refreshIndexCommand = new RefreshIndexCommand(
     async () => {
-      // Phase 8 will replace this stub with a real workspace indexer call.
+      // Phase 8 will replace this with a full WorkspaceIndexer.
       logger.info("[main] RefreshIndex: workspace indexer not yet wired (Phase 8)");
       void vscode.window.showInformationMessage(
         "Code Atlas: Workspace indexing will be available in Phase 8.",
@@ -90,7 +156,7 @@ export function activate(context: vscode.ExtensionContext): void {
   const clearCacheCommand = new ClearCacheCommand(configService, logger);
 
   // -------------------------------------------------------------------------
-  // 4. Register all disposables
+  // 7. Register all disposables
   // -------------------------------------------------------------------------
 
   context.subscriptions.push(
@@ -107,12 +173,6 @@ export function activate(context: vscode.ExtensionContext): void {
   logger.info("[main] Code Atlas activated successfully");
 }
 
-/**
- * Called by VS Code when the extension is deactivated (window close,
- * reload, or explicit disable). All disposables registered in
- * `context.subscriptions` are already cleaned up by the time this runs.
- */
 export function deactivate(): void {
   // Subscriptions registered on context are disposed by VS Code automatically.
-  // Nothing additional to clean up here.
 }

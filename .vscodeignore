@@ -21,3 +21,4 @@ vitest.perf.config.ts
 **/*.map
 **/*.ts
 !dist/**/*.js
+!grammars/**
