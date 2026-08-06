@@ -55,7 +55,8 @@ export type ExtensionToWebviewMessage =
   | EdgeDetailsMessage
   | IndexProgressMessage
   | IndexCompleteMessage
-  | IndexErrorMessage;
+  | IndexErrorMessage
+  | SearchResultsMessage;
 
 // ---------------------------------------------------------------------------
 // Webview → Extension messages
@@ -90,7 +91,36 @@ export type WebviewToExtensionMessage =
   | RequestNodeDetailsMessage
   | RequestEdgeDetailsMessage
   | OpenInEditorMessage
-  | ReadyMessage;
+  | ReadyMessage
+  | SearchRequestMessage;
 
 /** Any message flowing in either direction. */
 export type AnyMessage = ExtensionToWebviewMessage | WebviewToExtensionMessage;
+
+// ---------------------------------------------------------------------------
+// Search messages
+// ---------------------------------------------------------------------------
+
+/**
+ * Inline search result shape — mirrors NodeRef from GraphIndex but kept
+ * in shared so the webview can reference it without importing extension code.
+ */
+export interface SearchNodeRef {
+  readonly id: string;
+  readonly displayName: string;
+  readonly language: string;
+  readonly kind: string;
+  readonly file: string;
+  readonly module: string;
+}
+
+/** Webview → Extension: user typed a search query. */
+export interface SearchRequestMessage extends BaseMessage<MessageType.SearchRequest> {
+  readonly query: string;
+}
+
+/** Extension → Webview: search results in response to SearchRequest. */
+export interface SearchResultsMessage extends BaseMessage<MessageType.SearchResults> {
+  readonly query: string;
+  readonly results: ReadonlyArray<SearchNodeRef>;
+}

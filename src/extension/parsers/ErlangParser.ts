@@ -79,7 +79,7 @@ export class ErlangParser extends AbstractParser {
 
   async parseWorkspace(
     input: ParseWorkspaceInput,
-    onProgress?: (parsed: number, total: number) => void,
+    onProgress?: (parsed: number, total: number, currentFile?: string) => void,
   ): Promise<CodeGraph> {
     await this.ensureGrammarLoaded();
     return super.parseWorkspace(input, onProgress);

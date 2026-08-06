@@ -82,7 +82,7 @@ export abstract class AbstractParser implements LanguageParser {
    */
   async parseWorkspace(
     input: ParseWorkspaceInput,
-    onProgress?: (parsed: number, total: number) => void,
+    onProgress?: (parsed: number, total: number, currentFile?: string) => void,
   ): Promise<CodeGraph> {
     const files =
       input.files ??
@@ -104,7 +104,7 @@ export abstract class AbstractParser implements LanguageParser {
       const content = await this.readFile(filePath);
       if (content === null) {
         parsed++;
-        onProgress?.(parsed, total);
+        onProgress?.(parsed, total, filePath);
         continue;
       }
 
@@ -121,7 +121,7 @@ export abstract class AbstractParser implements LanguageParser {
       }
 
       parsed++;
-      onProgress?.(parsed, total);
+      onProgress?.(parsed, total, filePath);
     }
 
     return this.builder.build({

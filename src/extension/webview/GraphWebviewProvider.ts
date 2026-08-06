@@ -8,6 +8,7 @@ import type {
   RequestEdgeDetailsMessage,
   RequestNodeDetailsMessage,
   RequestSymbolMessage,
+  SearchRequestMessage,
 } from "../../shared/messages";
 import { MessageType } from "../../shared/enums";
 
@@ -15,6 +16,7 @@ export type OpenEditorHandler = (filePath: string, line: number, column: number)
 export type RequestSymbolHandler = (msg: RequestSymbolMessage) => Promise<void>;
 export type RequestNodeDetailsHandler = (msg: RequestNodeDetailsMessage) => Promise<void>;
 export type RequestEdgeDetailsHandler = (msg: RequestEdgeDetailsMessage) => Promise<void>;
+export type RequestSearchHandler = (msg: SearchRequestMessage) => void;
 
 /**
  * Manages the Code Atlas graph WebviewPanel.
@@ -38,6 +40,7 @@ export class GraphWebviewProvider implements vscode.Disposable {
   private onRequestSymbol: RequestSymbolHandler | null = null;
   private onRequestNodeDetails: RequestNodeDetailsHandler | null = null;
   private onRequestEdgeDetails: RequestEdgeDetailsHandler | null = null;
+  private onSearch: RequestSearchHandler | null = null;
 
   constructor(
     private readonly extensionUri: vscode.Uri,
@@ -102,6 +105,10 @@ export class GraphWebviewProvider implements vscode.Disposable {
 
   onDidRequestEdgeDetails(handler: RequestEdgeDetailsHandler): void {
     this.onRequestEdgeDetails = handler;
+  }
+
+  onDidRequestSearch(handler: RequestSearchHandler): void {
+    this.onSearch = handler;
   }
 
   // ---------------------------------------------------------------------------
@@ -192,6 +199,12 @@ export class GraphWebviewProvider implements vscode.Disposable {
     bus.on(MessageType.RequestEdgeDetails, (msg: RequestEdgeDetailsMessage) => {
       if (this.onRequestEdgeDetails) {
         void this.onRequestEdgeDetails(msg);
+      }
+    });
+
+    bus.on(MessageType.SearchRequest, (msg: SearchRequestMessage) => {
+      if (this.onSearch) {
+        this.onSearch(msg);
       }
     });
   }

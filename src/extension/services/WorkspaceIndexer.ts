@@ -145,7 +145,7 @@ export class WorkspaceIndexer {
           workspaceRoot: this.workspaceRoot,
           excludePatterns,
         },
-        (parsed, total) => {
+        (parsed, total, currentFile) => {
           // First call from this parser: register its total into globalTotal
           if (parserTotal === 0 && total > 0) {
             globalTotal += total;
@@ -155,12 +155,13 @@ export class WorkspaceIndexer {
           parserParsed = parsed;
           globalParsed += delta;
 
-          onProgress?.(globalParsed, Math.max(globalTotal, globalParsed), "");
+          onProgress?.(globalParsed, Math.max(globalTotal, globalParsed), currentFile ?? "");
 
           this.logger.debug("[WorkspaceIndexer] Progress", {
             parser: parser.language(),
             parsed,
             total,
+            currentFile,
           });
         },
       ).catch((err: unknown) => {

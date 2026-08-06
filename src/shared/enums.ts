@@ -140,4 +140,7 @@ export enum MessageType {
   RequestEdgeDetails = "request_edge_details",
   OpenInEditor = "open_in_editor",
   Ready = "ready",
+  SearchRequest = "search_request",
+  // Extension → Webview (search response)
+  SearchResults = "search_results",
 }

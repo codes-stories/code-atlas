@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import { IncrementalParseQueue } from "./IncrementalParseQueue";
 import type { ParserRegistry } from "../../shared/ParserRegistry";
 import type { GraphService } from "../graph/GraphService";
 import type { Logger } from "./Logger";
@@ -17,18 +18,25 @@ export type FileChangedHandler = (filePath: string) => void;
 /**
  * Wraps VS Code's `FileSystemWatcher` to provide incremental graph updates.
  *
- * Behaviour:
- * - **save / create** — re-parses the file and applies a `GraphMerge` patch.
- * - **delete**        — removes the file's nodes and edges from the graph.
- * - Only processes files that have a registered parser (`parserRegistry.resolve`).
- * - Debounces rapid save sequences (e.g. format-on-save) with a configurable
- *   delay so the parser doesn't run twice on a single logical edit.
- * - Calls the optional `onFileChanged` handler after each successful update so
- *   the caller can push the refreshed graph to the webview.
+ * ## Behaviour
  *
- * Usage:
+ * - **save / create** — debounces rapid saves, then enqueues a re-parse job
+ *   via `IncrementalParseQueue` to ensure graph mutations are serialised.
+ * - **delete** — immediately removes the file's nodes and edges from the graph.
+ * - Only processes files that have a registered parser (`parserRegistry.resolve`).
+ * - Tracks the **previous content** of every watched file so re-parses can
+ *   supply `ParseFileInput.previousContent`, enabling parsers to diff the AST
+ *   rather than reparsing from scratch.
+ * - After each successful patch, asynchronously invalidates the on-disk cache
+ *   by saving the updated graph (fire-and-forget, logged on error).
+ * - Calls `onFileChanged` after each successful update so the caller can push
+ *   the refreshed graph to the webview.
+ *
+ * ## Usage
+ *
  * ```ts
  * const watcher = new FileWatcher(workspaceRoot, parserRegistry, graphService, logger);
+ * watcher.setCacheFilePath("/workspace/.code-atlas/graph.cache.json");
  * watcher.onFileChanged(filePath => provider.send({ type: MessageType.GraphData, … }));
  * watcher.start();
  * context.subscriptions.push(watcher);
@@ -37,8 +45,21 @@ export type FileChangedHandler = (filePath: string) => void;
 export class FileWatcher implements vscode.Disposable {
   private watcher: vscode.FileSystemWatcher | null = null;
   private readonly disposables: vscode.Disposable[] = [];
+
+  /** Debounce timers keyed by file path. */
   private readonly pendingDebounce = new Map<string, ReturnType<typeof setTimeout>>();
+
+  /** Last known content for each file path — populated on first parse, updated after each re-parse. */
+  private readonly contentCache = new Map<string, string>();
+
+  /** Sequential queue — prevents concurrent graph mutations. */
+  private readonly queue = new IncrementalParseQueue();
+
+  /** Handler called after every successful incremental update. */
   private fileChangedHandler: FileChangedHandler | null = null;
+
+  /** Absolute path to the on-disk cache file, or null if not configured. */
+  private cacheFilePath: string | null = null;
 
   /** Debounce window in milliseconds. */
   private readonly debounceMs: number;
@@ -58,8 +79,15 @@ export class FileWatcher implements vscode.Disposable {
   // ---------------------------------------------------------------------------
 
   /**
+   * Sets the path to the on-disk cache file.
+   * When set, the watcher invalidates the cache after every successful patch.
+   */
+  setCacheFilePath(filePath: string): void {
+    this.cacheFilePath = filePath;
+  }
+
+  /**
    * Registers a handler called after each successful incremental graph update.
-   * Pass in a function that pushes the updated graph to the webview.
    */
   onFileChanged(handler: FileChangedHandler): void {
     this.fileChangedHandler = handler;
@@ -72,7 +100,6 @@ export class FileWatcher implements vscode.Disposable {
   start(): void {
     if (this.watcher) return;
 
-    // Watch every file; filtering is done in the handlers via parserRegistry.
     this.watcher = vscode.workspace.createFileSystemWatcher(
       new vscode.RelativePattern(this.workspaceRoot, "**/*"),
       /* ignoreCreateEvents */ false,
@@ -92,12 +119,14 @@ export class FileWatcher implements vscode.Disposable {
     });
   }
 
-  /** Stops all watchers and clears pending debounce timers. */
+  /** Stops all watchers, clears pending debounce timers, and clears the content cache. */
   dispose(): void {
     for (const timer of this.pendingDebounce.values()) {
       clearTimeout(timer);
     }
     this.pendingDebounce.clear();
+    this.contentCache.clear();
+    this.queue.clear();
     this.disposables.forEach((d) => d.dispose());
     this.disposables.length = 0;
     this.watcher = null;
@@ -109,10 +138,9 @@ export class FileWatcher implements vscode.Disposable {
   // ---------------------------------------------------------------------------
 
   private scheduleReparse(filePath: string): void {
-    // Ignore files with no registered parser
     if (!this.parserRegistry.resolve(filePath)) return;
 
-    // Cancel any pending re-parse for this file
+    // Cancel any pending debounce for this path
     const existing = this.pendingDebounce.get(filePath);
     if (existing !== undefined) {
       clearTimeout(existing);
@@ -120,10 +148,17 @@ export class FileWatcher implements vscode.Disposable {
 
     const timer = setTimeout(() => {
       this.pendingDebounce.delete(filePath);
-      void this.reparse(filePath);
+      this.enqueueReparse(filePath);
     }, this.debounceMs);
 
     this.pendingDebounce.set(filePath, timer);
+  }
+
+  private enqueueReparse(filePath: string): void {
+    this.queue.enqueue({
+      label: filePath,
+      execute: () => this.reparse(filePath),
+    });
   }
 
   private async reparse(filePath: string): Promise<void> {
@@ -132,17 +167,36 @@ export class FileWatcher implements vscode.Disposable {
 
     this.logger.debug("[FileWatcher] Re-parsing file", { filePath });
 
-    try {
-      const content = await readFileSafe(filePath);
-      const partial = await parser.parseFile({ filePath, content });
+    const previousContent = this.contentCache.get(filePath);
+    const content = await readFileSafe(filePath);
 
-      this.graphService.applyPatch({ filePath, patch: partial });
+    // Skip if the file is empty and we have no record of it
+    if (content === "" && previousContent === undefined) return;
 
-      this.logger.info("[FileWatcher] Incremental update applied", { filePath });
-      this.fileChangedHandler?.(filePath);
-    } catch (err) {
-      this.logger.error("[FileWatcher] Re-parse failed", { filePath, err });
+    // Skip if content is identical to what we last processed
+    if (content === previousContent) {
+      this.logger.debug("[FileWatcher] File content unchanged, skipping re-parse", { filePath });
+      return;
     }
+
+    const partial = await parser.parseFile({
+      filePath,
+      content,
+      ...(previousContent !== undefined ? { previousContent } : {}),
+    });
+
+    this.graphService.applyPatch({ filePath, patch: partial });
+
+    // Update the content cache with the freshly read content
+    this.contentCache.set(filePath, content);
+
+    this.logger.info("[FileWatcher] Incremental update applied", { filePath });
+
+    // Notify the caller (pushes graph to webview)
+    this.fileChangedHandler?.(filePath);
+
+    // Invalidate the on-disk cache asynchronously (fire-and-forget)
+    void this.invalidateCache();
   }
 
   // ---------------------------------------------------------------------------
@@ -152,19 +206,53 @@ export class FileWatcher implements vscode.Disposable {
   private handleDelete(filePath: string): void {
     if (!this.parserRegistry.resolve(filePath)) return;
 
-    // Cancel any pending re-parse for the deleted file
+    // Cancel any pending debounce for the deleted file
     const existing = this.pendingDebounce.get(filePath);
     if (existing !== undefined) {
       clearTimeout(existing);
       this.pendingDebounce.delete(filePath);
     }
 
+    // Also remove from content cache
+    this.contentCache.delete(filePath);
+
+    // Enqueue deletion as a serialised job so it doesn't race with a
+    // pending re-parse for the same file.
+    this.queue.enqueue({
+      label: filePath,
+      execute: async () => {
+        try {
+          this.graphService.removeFile(filePath);
+          this.logger.info("[FileWatcher] File removed from graph", { filePath });
+          this.fileChangedHandler?.(filePath);
+          void this.invalidateCache();
+        } catch (err) {
+          this.logger.error("[FileWatcher] removeFile failed", { filePath, err });
+        }
+      },
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Private — cache invalidation
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Asynchronously persists the current graph snapshot to disk.
+   * Called after every successful incremental update.
+   * Failures are logged but never propagated — the in-memory graph is always
+   * the source of truth.
+   */
+  private async invalidateCache(): Promise<void> {
+    if (!this.cacheFilePath) return;
+
     try {
-      this.graphService.removeFile(filePath);
-      this.logger.info("[FileWatcher] File removed from graph", { filePath });
-      this.fileChangedHandler?.(filePath);
+      await this.graphService.saveCache(this.cacheFilePath);
+      this.logger.debug("[FileWatcher] Cache invalidated (re-saved)", {
+        path: this.cacheFilePath,
+      });
     } catch (err) {
-      this.logger.error("[FileWatcher] removeFile failed", { filePath, err });
+      this.logger.warn("[FileWatcher] Cache invalidation failed (non-fatal)", err);
     }
   }
 }

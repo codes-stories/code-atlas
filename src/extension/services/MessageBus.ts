@@ -98,6 +98,7 @@ export function isIncomingType(type: string): type is WebviewToExtensionMessage[
     "request_edge_details" as MessageType,
     "open_in_editor" as MessageType,
     "ready" as MessageType,
+    "search_request" as MessageType,
   ];
   return incomingTypes.includes(type as MessageType);
 }

@@ -3,6 +3,7 @@ import { immer } from "zustand/middleware/immer";
 import { castDraft } from "immer";
 import type { CodeGraph, GraphNode, GraphEdge, ParseDiagnostic } from "../../../shared/models";
 import type { LayoutAlgorithm } from "../../../shared/enums";
+import type { SearchNodeRef } from "../../../shared/messages";
 import { postMessage } from "../vscodeApi";
 import { MessageType } from "../../../shared/enums";
 
@@ -55,6 +56,10 @@ export interface AtlasState {
   // --- UI preferences ---
   layout: LayoutAlgorithm;
   diagnostics: ReadonlyArray<ParseDiagnostic>;
+
+  // --- Search ---
+  searchQuery: string;
+  searchResults: ReadonlyArray<SearchNodeRef>;
 }
 
 // ---------------------------------------------------------------------------
@@ -86,6 +91,10 @@ export interface AtlasActions {
   clearSelection(): void;
   setLayout(layout: LayoutAlgorithm): void;
   retry(): void;
+
+  // Search
+  setSearchQuery(query: string): void;
+  receiveSearchResults(results: ReadonlyArray<SearchNodeRef>, query: string): void;
 }
 
 export type AtlasStore = AtlasState & AtlasActions;
@@ -103,6 +112,8 @@ const INITIAL_STATE: AtlasState = {
   errorMessage: null,
   layout: "dagre" as LayoutAlgorithm,
   diagnostics: [],
+  searchQuery: "",
+  searchResults: [],
 };
 
 // ---------------------------------------------------------------------------
@@ -210,6 +221,24 @@ export const useAtlasStore = create<AtlasStore>()(
       // re-triggers the graph build.
       postMessage({ type: MessageType.Ready });
     },
+
+    // -----------------------------------------------------------------------
+    // Search actions
+    // -----------------------------------------------------------------------
+
+    setSearchQuery(query) {
+      set((s) => {
+        s.searchQuery = query;
+      });
+      postMessage({ type: MessageType.SearchRequest, query });
+    },
+
+    receiveSearchResults(results, query) {
+      set((s) => {
+        s.searchQuery = query;
+        s.searchResults = castDraft(results);
+      });
+    },
   })),
 );
 
@@ -234,3 +263,6 @@ export const selectEdgeCount = (s: AtlasStore): number =>
 
 export const selectLanguages = (s: AtlasStore): ReadonlyArray<string> =>
   s.graph?.languages ?? [];
+
+export const selectSearchQuery = (s: AtlasStore): string => s.searchQuery;
+export const selectSearchResults = (s: AtlasStore): ReadonlyArray<SearchNodeRef> => s.searchResults;

@@ -9,6 +9,8 @@ import { ShowGraphCommand } from "./commands/ShowGraphCommand";
 import { ShowGraphForSymbolCommand } from "./commands/ShowGraphForSymbolCommand";
 import { RefreshIndexCommand } from "./commands/RefreshIndexCommand";
 import { ClearCacheCommand } from "./commands/ClearCacheCommand";
+import { SearchCommand } from "./commands/SearchCommand";
+import { SearchService } from "./services/SearchService";
 import { TreeSitterLoader } from "./parsers/TreeSitterLoader";
 import { ErlangParser } from "./parsers/ErlangParser";
 import { GraphService } from "./graph/GraphService";
@@ -76,6 +78,12 @@ export function activate(context: vscode.ExtensionContext): void {
   // -------------------------------------------------------------------------
 
   const graphService = new GraphService(workspaceRoot, logger);
+
+  // -------------------------------------------------------------------------
+  // 4a. Search service
+  // -------------------------------------------------------------------------
+
+  const searchService = new SearchService(graphService, logger);
 
   // -------------------------------------------------------------------------
   // 5. Webview provider (created early so indexer can push messages to it)
@@ -160,6 +168,10 @@ export function activate(context: vscode.ExtensionContext): void {
     logger,
   );
 
+  // Tell the watcher where the cache lives so it can invalidate it after
+  // each incremental patch.
+  fileWatcher.setCacheFilePath(indexer.cacheFilePath());
+
   fileWatcher.onFileChanged(() => {
     sendGraph();
   });
@@ -218,6 +230,11 @@ export function activate(context: vscode.ExtensionContext): void {
     provider.send({ type: MessageType.EdgeDetails, edge, sourceNode, targetNode });
   });
 
+  provider.onDidRequestSearch((msg) => {
+    const results = searchService.search(msg.query);
+    provider.send({ type: MessageType.SearchResults, query: msg.query, results });
+  });
+
   // -------------------------------------------------------------------------
   // 9. Commands
   // -------------------------------------------------------------------------
@@ -263,6 +280,8 @@ export function activate(context: vscode.ExtensionContext): void {
 
   const clearCacheCommand = new ClearCacheCommand(configService, logger);
 
+  const searchCommand = new SearchCommand(provider, searchService, graphService, logger);
+
   // -------------------------------------------------------------------------
   // 10. Register all disposables
   // -------------------------------------------------------------------------
@@ -277,6 +296,8 @@ export function activate(context: vscode.ExtensionContext): void {
     showGraphForSymbolCommand,
     refreshIndexCommand,
     clearCacheCommand,
+    searchService,
+    searchCommand,
   );
 
   logger.info("[main] Code Atlas activated successfully");

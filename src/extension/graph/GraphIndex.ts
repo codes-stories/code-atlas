@@ -53,6 +53,14 @@ export class GraphIndex {
   /** edge kind → edge ids */
   private readonly edgesByKind = new Map<EdgeKind, string[]>();
 
+  /**
+   * Cache for {@link searchByName} results.
+   * Key: `"${query}:${limit}"` — value: the sorted NodeRef array returned.
+   * The cache is naturally invalidated when a new `GraphIndex` is constructed
+   * (i.e. when the underlying `CodeGraph` snapshot changes).
+   */
+  private readonly searchCache = new Map<string, ReadonlyArray<NodeRef>>();
+
   private readonly graph: CodeGraph;
 
   constructor(graph: CodeGraph) {
@@ -88,8 +96,19 @@ export class GraphIndex {
    * Returns lightweight {@link NodeRef} objects for all nodes matching a
    * case-insensitive substring search on `displayName`.
    * Results are sorted by displayName ascending.
+   *
+   * Results are memoised per `(query, limit)` pair for the lifetime of this
+   * `GraphIndex` instance.  Because `GraphIndex` is rebuilt whenever the
+   * underlying `CodeGraph` snapshot changes, the cache is naturally
+   * invalidated — no manual invalidation is required.
    */
   searchByName(query: string, limit = 100): ReadonlyArray<NodeRef> {
+    const cacheKey = `${query}:${limit}`;
+    const cached = this.searchCache.get(cacheKey);
+    if (cached !== undefined) {
+      return cached;
+    }
+
     const q = query.toLowerCase();
     const results: NodeRef[] = [];
 
@@ -100,7 +119,9 @@ export class GraphIndex {
       }
     }
 
-    return results.sort((a, b) => a.displayName.localeCompare(b.displayName));
+    const sorted = results.sort((a, b) => a.displayName.localeCompare(b.displayName));
+    this.searchCache.set(cacheKey, sorted);
+    return sorted;
   }
 
   /**

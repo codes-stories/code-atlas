@@ -244,6 +244,58 @@ describe("allLanguages()", () => {
 });
 
 // ---------------------------------------------------------------------------
+// searchByName() — cache behaviour
+// ---------------------------------------------------------------------------
+
+describe("searchByName() cache", () => {
+  it("caches search results for repeated identical queries", () => {
+    const n1 = makeNode({ id: "n1", displayName: "handle_call" });
+    const n2 = makeNode({ id: "n2", displayName: "handle_cast" });
+    const n3 = makeNode({ id: "n3", displayName: "init" });
+    const idx = buildIndex([n1, n2, n3]);
+
+    // Call twice with the same arguments
+    const first  = idx.searchByName("handle");
+    const second = idx.searchByName("handle");
+
+    // Both calls should return results with the same content
+    expect(first).toHaveLength(2);
+    expect(second).toHaveLength(2);
+    expect(first.map((r) => r.id).sort()).toEqual(second.map((r) => r.id).sort());
+  });
+
+  it("returns same reference for cached results", () => {
+    const n1 = makeNode({ id: "n1", displayName: "start_link" });
+    const idx = buildIndex([n1]);
+
+    // The exact same array reference should be returned on the second call
+    const first  = idx.searchByName("start");
+    const second = idx.searchByName("start");
+
+    expect(first).toBe(second);
+  });
+
+  it("cache is per-instance (new GraphIndex has empty cache)", () => {
+    const n1 = makeNode({ id: "n1", displayName: "init" });
+    const n2 = makeNode({ id: "n2", displayName: "init_state" });
+
+    const idx1 = buildIndex([n1, n2]);
+    // Prime the cache on idx1
+    const cached = idx1.searchByName("init");
+    expect(cached).toHaveLength(2);
+
+    // A fresh index has its own empty cache — the result is independently
+    // computed but must match the same content
+    const idx2 = buildIndex([n1, n2]);
+    const fresh = idx2.searchByName("init");
+    expect(fresh).toHaveLength(2);
+
+    // They are distinct array instances because they come from different objects
+    expect(fresh).not.toBe(cached);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Stats
 // ---------------------------------------------------------------------------
 

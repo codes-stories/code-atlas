@@ -20,6 +20,7 @@ import { GraphLayoutEngine } from "../graph/GraphLayoutEngine";
 import { NODE_TYPES }        from "../graph/AtlasNodes";
 import { EDGE_TYPES }        from "../graph/AtlasEdges";
 import { GraphToolbar }      from "./GraphToolbar";
+import { SearchPanel }       from "./SearchPanel";
 import { StatusBar }         from "./StatusBar";
 import {
   useAtlasStore,
@@ -27,6 +28,13 @@ import {
   selectFocalNodeId,
   selectLayout,
 } from "../store/store";
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+/** Maximum number of nodes to render in the graph canvas at once. */
+const MAX_RENDER_NODES = 500;
 
 // ---------------------------------------------------------------------------
 // GraphLayoutEngine singleton — stateless, safe to share
@@ -52,7 +60,7 @@ function GraphViewInner(): React.ReactElement {
 
   const { initialNodes, initialEdges } = useMemo(() => {
     if (!graph) return { initialNodes: [], initialEdges: [] };
-    const { nodes, edges } = layoutEngine.layout(graph, layout, focalNodeId);
+    const { nodes, edges } = layoutEngine.layout(graph, layout, focalNodeId, MAX_RENDER_NODES);
     return { initialNodes: nodes, initialEdges: edges };
   }, [graph, layout, focalNodeId]);
 
@@ -101,6 +109,14 @@ function GraphViewInner(): React.ReactElement {
   );
 
   // --------------------------------------------------------------------------
+  // Large-graph warning — shown when total node count exceeds MAX_RENDER_NODES
+  // and no focal node is selected (focal mode already limits nodes via BFS)
+  // --------------------------------------------------------------------------
+
+  const totalNodeCount = graph ? Object.keys(graph.nodes).length : 0;
+  const showLargeGraphWarning = totalNodeCount > MAX_RENDER_NODES && !focalNodeId;
+
+  // --------------------------------------------------------------------------
   // Empty state
   // --------------------------------------------------------------------------
 
@@ -120,8 +136,34 @@ function GraphViewInner(): React.ReactElement {
     <div className="ca-graph" role="main" aria-label="Code relationship graph">
       <GraphToolbar />
 
+      <SearchPanel />
+
       <div className="ca-graph__body">
         <div className="ca-graph__canvas">
+          {showLargeGraphWarning && (
+            <div
+              role="status"
+              aria-live="polite"
+              style={{
+                position: "absolute",
+                top: 8,
+                left: "50%",
+                transform: "translateX(-50%)",
+                zIndex: 10,
+                background: "var(--vscode-editorWarning-foreground, #e2b13c)",
+                color: "var(--vscode-editor-background, #1e1e1e)",
+                padding: "6px 16px",
+                borderRadius: 4,
+                fontSize: 12,
+                fontWeight: 600,
+                pointerEvents: "none",
+                whiteSpace: "nowrap",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
+              }}
+            >
+              {`Large graph: showing top ${MAX_RENDER_NODES} nodes. Use "Show Code Atlas for Symbol" to focus on a specific symbol.`}
+            </div>
+          )}
           <ReactFlow
             nodes={nodes}
             edges={edges}

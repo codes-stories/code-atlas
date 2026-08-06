@@ -1,10 +1,16 @@
+# VS Code & tooling
 .vscode/**
 .vscode-test/**
-node_modules/**
+
+# Source — not needed at runtime (dist/ is used)
 src/**
 scripts/**
+
+# Tests & fixtures — not shipped
 tests/**
 fixtures/**
+
+# Config files
 .gitignore
 .gitattributes
 .editorconfig
@@ -17,8 +23,13 @@ tsconfig.webview.json
 vitest.config.ts
 vitest.integration.config.ts
 vitest.perf.config.ts
+
+# Build artefacts
 *.vsix
 **/*.map
 **/*.ts
+
+# Negations — files that MUST be included
 !dist/**/*.js
 !grammars/**
+!assets/**

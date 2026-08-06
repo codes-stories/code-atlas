@@ -28,6 +28,7 @@ export function useMessageBridge(): void {
   const receiveProgress = useAtlasStore((s) => s.receiveProgress);
   const receiveIndexComplete = useAtlasStore((s) => s.receiveIndexComplete);
   const receiveError = useAtlasStore((s) => s.receiveError);
+  const receiveSearchResults = useAtlasStore((s) => s.receiveSearchResults);
 
   useEffect(() => {
     function handleMessage(event: MessageEvent): void {
@@ -67,6 +68,10 @@ export function useMessageBridge(): void {
           receiveError(msg.error);
           break;
 
+        case MessageType.SearchResults:
+          receiveSearchResults(msg.results, msg.query);
+          break;
+
         default:
           // Unknown message type — ignore silently.
           break;
@@ -88,5 +93,6 @@ export function useMessageBridge(): void {
     receiveProgress,
     receiveIndexComplete,
     receiveError,
+    receiveSearchResults,
   ]);
 }

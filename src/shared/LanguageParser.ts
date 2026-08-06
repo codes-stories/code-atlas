@@ -102,10 +102,12 @@ export interface LanguageParser {
    * Parses the entire workspace and returns a complete CodeGraph.
    * Called on first open and after cache invalidation.
    * Must emit progress events through the provided callback if provided.
+   * The optional third argument `currentFile` names the file currently
+   * being processed so callers can surface it in progress notifications.
    */
   parseWorkspace(
     input: ParseWorkspaceInput,
-    onProgress?: (parsed: number, total: number) => void,
+    onProgress?: (parsed: number, total: number, currentFile?: string) => void,
   ): Promise<CodeGraph>;
 
   /**
