@@ -2,6 +2,8 @@ import * as path from "path";
 import * as vscode from "vscode";
 import { Logger } from "./services/Logger";
 import { ConfigService } from "./services/ConfigService";
+import { WorkspaceIndexer, IndexerCancelledError } from "./services/WorkspaceIndexer";
+import { FileWatcher } from "./services/FileWatcher";
 import { GraphWebviewProvider } from "./webview/GraphWebviewProvider";
 import { ShowGraphCommand } from "./commands/ShowGraphCommand";
 import { ShowGraphForSymbolCommand } from "./commands/ShowGraphForSymbolCommand";
@@ -21,8 +23,10 @@ import { MessageType } from "../shared/enums";
  *   2. TreeSitterLoader — boots the WASM runtime
  *   3. ParserRegistry + ErlangParser registration
  *   4. GraphService — in-memory graph facade
- *   5. GraphWebviewProvider
- *   6. Commands
+ *   5. WorkspaceIndexer — full-workspace parse + cache orchestration
+ *   6. FileWatcher — incremental re-parse on file save/create/delete
+ *   7. GraphWebviewProvider
+ *   8. Commands
  */
 export function activate(context: vscode.ExtensionContext): void {
   // -------------------------------------------------------------------------
@@ -59,6 +63,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? "";
   const grammarDir = path.join(context.extensionUri.fsPath, "grammars");
+  const cacheDir = config.cacheDirectory;
 
   const parserRegistry = new ParserRegistry();
   const erlangParser = new ErlangParser(workspaceRoot, loader, grammarDir);
@@ -73,10 +78,108 @@ export function activate(context: vscode.ExtensionContext): void {
   const graphService = new GraphService(workspaceRoot, logger);
 
   // -------------------------------------------------------------------------
-  // 5. Webview provider
+  // 5. Webview provider (created early so indexer can push messages to it)
   // -------------------------------------------------------------------------
 
   const provider = new GraphWebviewProvider(context.extensionUri, logger);
+
+  /** Pushes the current graph snapshot to the webview (no-op if panel is closed). */
+  function sendGraph(focalNodeId: string | null = null): void {
+    const graph = graphService.getGraph();
+    provider.send({ type: MessageType.GraphData, graph, focalNodeId });
+  }
+
+  // -------------------------------------------------------------------------
+  // 6. Workspace indexer
+  // -------------------------------------------------------------------------
+
+  const indexer = new WorkspaceIndexer(
+    workspaceRoot,
+    cacheDir,
+    parserRegistry,
+    graphService,
+    logger,
+  );
+
+  /**
+   * Runs a full workspace index and reports progress + completion to the
+   * webview.  Used by both the initial boot sequence and RefreshIndexCommand.
+   */
+  async function runIndex(force: boolean, token?: vscode.CancellationToken): Promise<void> {
+    if (!workspaceRoot) {
+      void vscode.window.showWarningMessage("Code Atlas: No workspace folder is open.");
+      return;
+    }
+
+    try {
+      const result = await indexer.index({
+        force,
+        ...(token ? { token } : {}),
+        onProgress: (parsed, total, currentFile) => {
+          provider.send({
+            type: MessageType.IndexProgress,
+            parsed,
+            total,
+            currentFile,
+          });
+        },
+      });
+
+      provider.send({
+        type: MessageType.IndexComplete,
+        nodeCount: Object.keys(result.graph.nodes).length,
+        edgeCount: Object.keys(result.graph.edges).length,
+        durationMs: result.durationMs,
+        diagnostics: result.diagnostics,
+      });
+
+      sendGraph();
+    } catch (err) {
+      if (err instanceof IndexerCancelledError) {
+        logger.info("[main] Indexing cancelled by user");
+        return;
+      }
+      const msg = err instanceof Error ? err.message : String(err);
+      logger.error("[main] Indexing failed", err);
+      provider.send({ type: MessageType.IndexError, error: msg });
+      void vscode.window.showErrorMessage(`Code Atlas: Indexing failed — ${msg}`);
+    }
+  }
+
+  // Trigger an initial index when the extension activates (uses cache if available).
+  void runIndex(false);
+
+  // -------------------------------------------------------------------------
+  // 7. File watcher — incremental re-parse
+  // -------------------------------------------------------------------------
+
+  const fileWatcher = new FileWatcher(
+    workspaceRoot,
+    parserRegistry,
+    graphService,
+    logger,
+  );
+
+  fileWatcher.onFileChanged(() => {
+    sendGraph();
+  });
+
+  if (config.enableIncrementalParsing) {
+    fileWatcher.start();
+  }
+
+  // Re-start watcher when the setting changes
+  configService.onDidChange((updated) => {
+    if (updated.enableIncrementalParsing) {
+      fileWatcher.start();
+    } else {
+      fileWatcher.dispose();
+    }
+  });
+
+  // -------------------------------------------------------------------------
+  // 8. Webview provider handlers
+  // -------------------------------------------------------------------------
 
   provider.onDidRequestOpenEditor(async (filePath, line, column) => {
     logger.info("[main] Opening editor at", { filePath, line, column });
@@ -116,7 +219,7 @@ export function activate(context: vscode.ExtensionContext): void {
   });
 
   // -------------------------------------------------------------------------
-  // 6. Commands
+  // 9. Commands
   // -------------------------------------------------------------------------
 
   const showGraphCommand = new ShowGraphCommand(provider, logger);
@@ -144,10 +247,15 @@ export function activate(context: vscode.ExtensionContext): void {
 
   const refreshIndexCommand = new RefreshIndexCommand(
     async () => {
-      // Phase 8 will replace this with a full WorkspaceIndexer.
-      logger.info("[main] RefreshIndex: workspace indexer not yet wired (Phase 8)");
-      void vscode.window.showInformationMessage(
-        "Code Atlas: Workspace indexing will be available in Phase 8.",
+      await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: "Code Atlas: Re-indexing workspace…",
+          cancellable: true,
+        },
+        async (_progress, token) => {
+          await runIndex(/* force */ true, token);
+        },
       );
     },
     logger,
@@ -156,7 +264,7 @@ export function activate(context: vscode.ExtensionContext): void {
   const clearCacheCommand = new ClearCacheCommand(configService, logger);
 
   // -------------------------------------------------------------------------
-  // 7. Register all disposables
+  // 10. Register all disposables
   // -------------------------------------------------------------------------
 
   context.subscriptions.push(
@@ -164,6 +272,7 @@ export function activate(context: vscode.ExtensionContext): void {
     configService,
     configListener,
     provider,
+    fileWatcher,
     showGraphCommand,
     showGraphForSymbolCommand,
     refreshIndexCommand,

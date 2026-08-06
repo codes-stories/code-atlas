@@ -330,12 +330,15 @@ npm run build
 - [x] App.tsx shell: graph + detail panel flex layout
 - [x] Build clean, typecheck clean, 184/184 tests passing
 
-**Phase 8: Workspace Indexing** ⬜ PENDING
+**Phase 8: Workspace Indexing** ✅ **COMPLETE**
 
-- [ ] WorkspaceIndexer service
-- [ ] File watcher for incremental re-parse
-- [ ] Progress reporting to webview
-- [ ] Cache load/save orchestration
+- [x] WorkspaceIndexer service — full workspace parse, cache load/save, progress reporting, cancellation token support
+- [x] FileWatcher service — VS Code FileSystemWatcher wrapper, debounced incremental re-parse on save/create/delete
+- [x] Progress reporting to webview (IndexProgress, IndexComplete, IndexError messages)
+- [x] Cache load/save orchestration — cache hit skips parse; force=true bypasses cache
+- [x] main.ts fully wired — initial index on activation, RefreshIndexCommand triggers force re-index with progress UI, FileWatcher drives incremental updates
+- [x] Unit tests: 203 passing (184 + 19 new WorkspaceIndexer tests)
+- [x] Build clean, typecheck clean
 
 **Phase 9: Incremental Parsing** ⬜ PENDING
 
