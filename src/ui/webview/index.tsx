@@ -1,6 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
+import { injectGraphStyles } from "./graphStyles";
 
 /**
  * Webview entry point.
@@ -9,7 +10,14 @@ import { App } from "./App";
  * application tree into it. React 18 concurrent mode is enabled via
  * `createRoot`. StrictMode is kept on so any effect / ref misuse surfaces
  * during development.
+ *
+ * Graph component styles are injected as a single <style> block before
+ * React renders so the first paint is not unstyled.
  */
+
+// Inject all Code Atlas graph styles into the document head
+injectGraphStyles();
+
 const rootElement = document.getElementById("root");
 
 if (!rootElement) {

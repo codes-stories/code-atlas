@@ -316,13 +316,19 @@ npm run build
 - [x] ESBuild: clean
 - [x] TypeScript: zero errors
 
-**Phase 7: Graph Rendering** ⬜ PENDING
+**Phase 7: Graph Rendering** ✅ **COMPLETE**
 
-- [ ] React Flow integration in GraphView
-- [ ] Dagre layout engine
-- [ ] Node and edge custom renderers
-- [ ] Zoom, pan, minimap
-- [ ] Highlight paths, cycles, recursive calls
+- [x] React Flow integration in GraphView
+- [x] Dagre layout engine (GraphLayoutEngine — LR/TB, configurable sep/rank)
+- [x] Custom node renderers: FunctionNode, ModuleNode, GenServerNode
+- [x] Custom edge renderer: AtlasEdge (bezier, kind-coloured, labelled)
+- [x] Zoom, pan, minimap, fit-view controls (MiniMap, Controls, Background)
+- [x] GraphToolbar — layout algorithm selector + zoom-in/out/fit buttons
+- [x] DetailPanel — node detail (signature, metrics, location, git blame, edges) and edge detail (kind, condition, source snippet, location)
+- [x] Node/edge click handlers wired to store → extension host message round-trip
+- [x] graphStyles.ts — CSS design tokens keyed on VS Code theme variables, injected before React mounts
+- [x] App.tsx shell: graph + detail panel flex layout
+- [x] Build clean, typecheck clean, 184/184 tests passing
 
 **Phase 8: Workspace Indexing** ⬜ PENDING
 

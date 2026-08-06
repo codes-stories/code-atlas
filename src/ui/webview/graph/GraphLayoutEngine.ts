@@ -1,4 +1,5 @@
 import dagre from "@dagrejs/dagre";
+import { MarkerType } from "reactflow";
 import type { Node as RFNode, Edge as RFEdge } from "reactflow";
 import type { CodeGraph } from "../../../shared/models";
 import type { LayoutAlgorithm } from "../../../shared/enums";
@@ -129,7 +130,7 @@ export class GraphLayoutEngine {
           label: edgeLabel(edge.kind as string),
           relationshipType: edge.relationshipType,
         },
-        markerEnd: { type: "arrowclosed" as const, width: 16, height: 16 },
+        markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16 },
       };
     });
 
